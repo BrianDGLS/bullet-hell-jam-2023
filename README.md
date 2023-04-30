@@ -1,1 +1,1 @@
-# js-game-starter
+# Bullet Hell Jam 2023
