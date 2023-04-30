@@ -8,9 +8,10 @@
     </head>
     <body>
         <div id="stage">
-            <canvas id="ui"></canvas>
-            <canvas id="game"></canvas>
             <canvas id="bg"></canvas>
+            <canvas id="game"></canvas>
+            <canvas id="ui"></canvas>
+            <canvas id="offscreen"></canvas>
         </div>
 
         <style>
@@ -28,14 +29,9 @@
                 height: 100%;
                 position: absolute;
             }
-            #ui {
-                z-index: 3;
-            }
-            #game {
-                z-index: 2;
-            }
-            #bg {
-                z-index: 1;
+
+            #offscreen {
+                right: 9999px;
             }
         </style>
 
