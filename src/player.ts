@@ -3,14 +3,16 @@ import { isKeyDown, KEYS } from "./keyboard"
 import { Vec2, Context } from "./types"
 import { getRandomInt } from "./utils"
 
-type Player = Vec2 & {
+export type Player = Vec2 & {
     vx: number
     vy: number
     color: string
     speed: number
+    alive: boolean
     radius: number
     beaming: boolean
     rotation: number
+    beamSpeed: number
 }
 
 export function createPlayer({ x, y }: Vec2): Player {
@@ -22,6 +24,8 @@ export function createPlayer({ x, y }: Vec2): Player {
         speed: 4,
         radius: 10,
         rotation: 0,
+        alive: true,
+        beamSpeed: 2,
         color: "#fff",
         beaming: false,
     }
