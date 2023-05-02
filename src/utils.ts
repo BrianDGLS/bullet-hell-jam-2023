@@ -1,4 +1,4 @@
-import { Vec2 } from "./types"
+import { Circle, Vec2 } from "./types"
 
 export function getRandomInt(min: number, max: number): number {
     min = Math.ceil(min)
@@ -6,7 +6,7 @@ export function getRandomInt(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min) + min) // The maximum is exclusive and the minimum is inclusive
 }
 
-export const choose = (a: any, b: any) => Math.random() > .5 ? a : b
+export const choose = (a: any, b: any) => (Math.random() > 0.5 ? a : b)
 
 export const sample = <T>(arr: T[]): T =>
     arr[Math.floor(Math.random() * arr.length)]
@@ -32,4 +32,16 @@ export function moveTowards(origin: Vec2, target: Vec2, speed: number): Vec2 {
         x: origin.x + (toVectorX / dist) * speed,
         y: origin.y + (toVectorY / dist) * speed,
     }
+}
+
+export function circlesIntersect(a: Circle, b: Circle): boolean {
+    // get distance between the circle's centers
+    // use the Pythagorean Theorem to compute the distance
+    const distX = a.x - b.x
+    const distY = a.y - b.y
+    const distance = Math.sqrt(distX * distX + distY * distY)
+
+    // if the distance is less than the sum of the circle's
+    // radii, the circles are touching!
+    return distance <= a.radius + b.radius
 }

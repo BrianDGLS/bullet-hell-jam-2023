@@ -4,10 +4,17 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT, GROUND_HEIGHT, FLOOR } from "./constants"
 import { createPlayer, updatePlayer, renderPlayer, Player } from "./player"
 import { generateCRTVignette } from "./crt"
 import { Cow, createCow, renderCow, updateCow } from "./cow"
-import { choose, moveTowards } from "./utils"
+import {
+    choose,
+    circlesIntersect,
+    getRandomInt,
+    moveTowards,
+    sample,
+} from "./utils"
 import { Farmer, createFarmer, renderFarmer, updateFarmer } from "./farmer"
 import { Bullet } from "./bullet"
 import { createExplosion, updateExplosion } from "./explosion"
+import { Stars } from "./stars"
 
 const $stage = document.getElementById("stage") as HTMLDivElement
 
@@ -37,6 +44,14 @@ function renderGround(ctx: Context) {
     ctx.lineTo(CANVAS_WIDTH, CANVAS_HEIGHT - GROUND_HEIGHT)
     ctx.closePath()
 
+    ctx.fillStyle = "black"
+    ctx.fillRect(
+        0,
+        CANVAS_HEIGHT - GROUND_HEIGHT,
+        CANVAS_WIDTH,
+        CANVAS_HEIGHT - GROUND_HEIGHT,
+    )
+
     ctx.stroke()
 
     ctx.restore()
@@ -62,14 +77,19 @@ type GameState = {
     farmers: Farmer[]
     bullets: Bullet[]
     explosions: any[]
+    stars: Stars
 }
 
 const state: GameState = {
     player: createPlayer({ x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 }),
     cows: [createCow({ x: choose(CANVAS_WIDTH, 0), y: FLOOR })],
-    farmers: [createFarmer({ x: choose(CANVAS_WIDTH, 0), y: FLOOR })],
+    farmers: [
+        createFarmer({ x: CANVAS_WIDTH, y: FLOOR }),
+        createFarmer({ x: 0, y: FLOOR }),
+    ],
     bullets: [],
     explosions: [],
+    stars: new Stars(100),
 }
 
 $stage.addEventListener("mousedown", () => {
@@ -93,6 +113,18 @@ function makeFarmerShoot(farmer: Farmer, player: Player, state) {
     }
 }
 
+const hills: Vec2[] = []
+
+const verticalSteps = [-32, -96, -64, -128, -160, -196]
+const horizontalSteps = [32, 64, 96]
+const startX = -sample(horizontalSteps)
+let progress = startX
+hills.push({ x: startX, y: sample(verticalSteps) })
+while (progress < CANVAS_WIDTH) {
+    progress += sample(horizontalSteps)
+    hills.push({ x: progress, y: sample(verticalSteps) })
+}
+
 window.onload = function main() {
     requestAnimationFrame(main)
 
@@ -103,6 +135,26 @@ window.onload = function main() {
     ui.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
 
     ui.putImageData(vignette, 0, 0)
+
+    state.stars.makeCamFollow(state.player)
+    state.stars.render(game)
+
+    const ctx = game
+    ctx.save()
+    ctx.translate(0, FLOOR)
+    ctx.beginPath()
+    ctx.moveTo(hills[0].x, 0)
+    for (const hill of hills) {
+        ctx.lineTo(hill.x, hill.y)
+    }
+    ctx.lineTo(hills[hills.length - 1].x, 0)
+    ctx.closePath()
+    ctx.strokeStyle = "#fff"
+    ctx.fillStyle = "#000"
+    ctx.lineWidth = 4
+    ctx.stroke()
+    ctx.fill()
+    ctx.restore()
 
     for (const cow of state.cows) {
         updateCow(cow)
@@ -120,7 +172,10 @@ window.onload = function main() {
 
         if (cow.isBeingAbducted) {
             const playerCenter = {
-                x: state.player.x - cow.width / 2,
+                x:
+                    cow.vx < 0
+                        ? state.player.x - cow.width / 2
+                        : state.player.x + cow.width / 2,
                 y: state.player.y,
             }
             const newPosition = moveTowards(
@@ -133,8 +188,11 @@ window.onload = function main() {
         }
 
         if (
-            (cow.x === state.player.x - cow.width / 2 &&
-                cow.y < state.player.y + state.player.radius * 2) ||
+            circlesIntersect(state.player, {
+                x: cow.x,
+                y: cow.y,
+                radius: cow.height / 2,
+            }) ||
             cow.x + cow.width < 0 ||
             cow.x > CANVAS_WIDTH
         ) {
@@ -157,7 +215,10 @@ window.onload = function main() {
         if (farmer.x + farmer.width < 0 || farmer.x > CANVAS_WIDTH) {
             Object.assign(
                 farmer,
-                createFarmer({ x: choose(CANVAS_WIDTH, 0), y: FLOOR }),
+                createFarmer({
+                    x: farmer.vx < 0 ? CANVAS_WIDTH : -farmer.width,
+                    y: FLOOR,
+                }),
             )
         }
     }
@@ -165,13 +226,7 @@ window.onload = function main() {
     for (const [index, bullet] of state.bullets.entries()) {
         bullet.update()
 
-        if (
-            state.player.alive &&
-            bullet.position.x < state.player.x + state.player.radius * 2 &&
-            bullet.position.x > state.player.x - state.player.radius * 2 &&
-            bullet.position.y < state.player.y + state.player.radius * 2 &&
-            bullet.position.y > state.player.y - state.player.radius * 2
-        ) {
+        if (state.player.alive && circlesIntersect(bullet, state.player)) {
             state.explosions.push(createExplosion(state.player))
             state.bullets.splice(index, 1)
             state.player.alive = false
@@ -193,7 +248,6 @@ window.onload = function main() {
         }
     }
 
-    // render
     renderBg(bg)
     renderGround(game)
 }

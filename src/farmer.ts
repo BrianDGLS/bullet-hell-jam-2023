@@ -38,7 +38,6 @@ export function createFarmer({ x, y }: Vec2): Farmer {
     }
 }
 
-
 export function renderFarmer(ctx: Context, farmer: Farmer) {
     ctx.save()
 
@@ -52,13 +51,15 @@ export function renderFarmer(ctx: Context, farmer: Farmer) {
     //body
     ctx.fillStyle = farmer.clothesColor
     ctx.fillRect(0, headHeight, farmer.width, farmer.height - headHeight)
+    // hat
+    ctx.fillRect(0, 0, farmer.width * 1.2, headHeight / 4)
     ctx.restore()
 }
 
 export function updateFarmer(farmer: Farmer) {
     farmer.x += farmer.vx
     farmer.y += farmer.vy
-    if (farmer.vx > 0) {
+    if (farmer.vx < 0) {
         farmer.scale.x = -1
     }
     if (farmer.animationDuration.hasPassed()) {
