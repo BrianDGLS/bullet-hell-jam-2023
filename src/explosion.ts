@@ -9,9 +9,8 @@ export const createExplosion = ({ x, y }: Vec2) => ({
     count: 8,
     radius: 1,
     embers: [],
-    color: "red",
     ended: false,
-    emberRadius: 3,
+    emberRadius: 5,
 })
 
 export type Ember = {
@@ -42,6 +41,7 @@ export const generateEmbers = (e) => {
     }
     return res
 }
+
 export const updateExplosion = (ctx: Context, e) => {
     if (!e.embers.length) {
         e.embers = generateEmbers(e)
@@ -53,9 +53,12 @@ export const updateExplosion = (ctx: Context, e) => {
 
         ctx.save()
         ctx.translate(m.x, m.y)
+        ctx.lineWidth = 4;
         ctx.strokeStyle = `hsla(0,80%,80%,${e.alpha})`
+        ctx.fillStyle = `hsla(300,50%,80%,${e.alpha})`
         ctx.beginPath()
         ctx.arc(0, 0, m.radius, 0, Math.PI * 2)
+        ctx.fill()
         ctx.stroke()
         ctx.restore()
     })

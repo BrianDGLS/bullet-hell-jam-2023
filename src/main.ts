@@ -1,6 +1,12 @@
 import { layers } from "./layers"
 import { Context, Vec2 } from "./types"
-import { CANVAS_WIDTH, CANVAS_HEIGHT, GROUND_HEIGHT, FLOOR } from "./constants"
+import {
+    CANVAS_WIDTH,
+    CANVAS_HEIGHT,
+    GROUND_HEIGHT,
+    FLOOR,
+    PLANE_SPAWN_TIME,
+} from "./constants"
 import { createPlayer, updatePlayer, renderPlayer, Player } from "./player"
 import { generateCRTVignette } from "./crt"
 import { Cow, createCow, renderCow, updateCow } from "./cow"
@@ -15,6 +21,14 @@ import { Farmer, createFarmer, renderFarmer, updateFarmer } from "./farmer"
 import { Bullet } from "./bullet"
 import { createExplosion, updateExplosion } from "./explosion"
 import { Stars } from "./stars"
+import { createHills, renderHills } from "./hills"
+import {
+    Airplane,
+    createAirplane,
+    renderAirplane,
+    updateAirplane,
+} from "./airplane"
+import { Duration } from "./duration"
 
 const $stage = document.getElementById("stage") as HTMLDivElement
 
@@ -64,13 +78,6 @@ function fadeOutFrame(ctx: Context, opacity = 1) {
     ctx.restore()
 }
 
-function renderBullet(ctx: Context, bullet: Vec2, size = 4, color = "#fff") {
-    ctx.save()
-    ctx.fillStyle = color
-    ctx.fillRect(bullet.x, bullet.y, size, size)
-    ctx.restore()
-}
-
 type GameState = {
     player: Player
     cows: Cow[]
@@ -78,6 +85,11 @@ type GameState = {
     bullets: Bullet[]
     explosions: any[]
     stars: Stars
+    hills: Vec2[]
+    score: number
+    plane: Airplane
+    planeSpawnRate: Duration
+    previousPlaneSpawn: number
 }
 
 const state: GameState = {
@@ -90,6 +102,11 @@ const state: GameState = {
     bullets: [],
     explosions: [],
     stars: new Stars(100),
+    hills: createHills(),
+    plane: createAirplane({ x: -50, y: 50 }),
+    planeSpawnRate: new Duration(PLANE_SPAWN_TIME),
+    previousPlaneSpawn: 0,
+    score: 0,
 }
 
 $stage.addEventListener("mousedown", () => {
@@ -113,48 +130,47 @@ function makeFarmerShoot(farmer: Farmer, player: Player, state) {
     }
 }
 
-const hills: Vec2[] = []
+function makePlaneShoot(plane: Airplane, state) {
+    if (plane.fireRate.hasPassed()) {
+        const toAngle = Math.atan2(FLOOR - plane.y, plane.x)
+        state.bullets.push(new Bullet(toAngle, plane, 10))
+    }
+}
 
-const verticalSteps = [-32, -96, -64, -128, -160, -196]
-const horizontalSteps = [32, 64, 96]
-const startX = -sample(horizontalSteps)
-let progress = startX
-hills.push({ x: startX, y: sample(verticalSteps) })
-while (progress < CANVAS_WIDTH) {
-    progress += sample(horizontalSteps)
-    hills.push({ x: progress, y: sample(verticalSteps) })
+function renderScore(ctx: Context, score: number) {
+    ctx.save()
+    ctx.fillStyle = "rgba(0, 0, 0, .3)"
+    ctx.fillRect(CANVAS_WIDTH - 105, 0, 105, 35)
+    ctx.font = "22px monospace"
+    ctx.textAlign = "center"
+    ctx.textBaseline = "middle"
+    ctx.filter = "grayscale(1)"
+    ctx.fillStyle = "#fff"
+    ctx.fillText(
+        `🐮 ${score.toString().padStart(4, " ")}`,
+        CANVAS_WIDTH - 55,
+        20,
+    )
+    ctx.restore()
 }
 
 window.onload = function main() {
     requestAnimationFrame(main)
 
-    const { bg, game, ui } = layers
+    const { bg, game, ui, effects } = layers
 
     bg.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
     fadeOutFrame(game, 0.6)
+    effects.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
     ui.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
 
     ui.putImageData(vignette, 0, 0)
+    renderScore(ui, state.score)
 
     state.stars.makeCamFollow(state.player)
     state.stars.render(game)
 
-    const ctx = game
-    ctx.save()
-    ctx.translate(0, FLOOR)
-    ctx.beginPath()
-    ctx.moveTo(hills[0].x, 0)
-    for (const hill of hills) {
-        ctx.lineTo(hill.x, hill.y)
-    }
-    ctx.lineTo(hills[hills.length - 1].x, 0)
-    ctx.closePath()
-    ctx.strokeStyle = "#fff"
-    ctx.fillStyle = "#000"
-    ctx.lineWidth = 4
-    ctx.stroke()
-    ctx.fill()
-    ctx.restore()
+    renderHills(game, state.hills)
 
     for (const cow of state.cows) {
         updateCow(cow)
@@ -185,6 +201,16 @@ window.onload = function main() {
             )
             cow.x = newPosition.x
             cow.y = newPosition.y
+        }
+
+        if (
+            circlesIntersect(state.player, {
+                x: cow.x,
+                y: cow.y,
+                radius: cow.height / 2,
+            })
+        ) {
+            state.score += 1
         }
 
         if (
@@ -225,13 +251,53 @@ window.onload = function main() {
 
     for (const [index, bullet] of state.bullets.entries()) {
         bullet.update()
+        bullet.render(effects)
 
         if (state.player.alive && circlesIntersect(bullet, state.player)) {
             state.explosions.push(createExplosion(state.player))
-            state.bullets.splice(index, 1)
+            bullet.active = false
             state.player.alive = false
-        } else {
-            bullet.render(game)
+        }
+
+        if (
+            bullet.x + bullet.radius < 0 ||
+            bullet.x - bullet.radius > CANVAS_WIDTH ||
+            bullet.y - bullet.radius < 0 ||
+            bullet.y + bullet.radius > CANVAS_HEIGHT
+        ) {
+            bullet.active = false
+        }
+
+        if (bullet.y + bullet.radius > FLOOR) {
+            state.explosions.push(createExplosion(bullet))
+            bullet.active = false
+        }
+    }
+
+    if (!state.plane.active && state.planeSpawnRate.hasPassed()) {
+        state.plane.active = true
+
+        const spawnRight = state.previousPlaneSpawn <= 0
+        state.plane.x = spawnRight
+            ? CANVAS_WIDTH + state.plane.radius
+            : -state.plane.radius
+        state.plane.vx = spawnRight ? -state.player.speed : state.player.speed
+        state.plane.scaleX = spawnRight ? -1 : 1
+
+        state.previousPlaneSpawn = state.plane.x
+    }
+
+    if (state.plane.active) {
+        updateAirplane(state.plane)
+        makePlaneShoot(state.plane, state)
+        renderAirplane(game, state.plane)
+
+        if (
+            state.plane.x - state.plane.radius > CANVAS_WIDTH ||
+            state.plane.x + state.plane.radius < 0
+        ) {
+            state.plane.active = false
+            state.planeSpawnRate = new Duration(PLANE_SPAWN_TIME)
         }
     }
 
@@ -244,10 +310,12 @@ window.onload = function main() {
         if (explosion.ended) {
             state.explosions.splice(index, 1)
         } else {
-            updateExplosion(game, explosion)
+            updateExplosion(effects, explosion)
         }
     }
 
     renderBg(bg)
     renderGround(game)
+
+    state.bullets = state.bullets.filter((b) => b.active)
 }
