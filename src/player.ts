@@ -1,13 +1,14 @@
-import { CANVAS_HEIGHT, FRICTION, CANVAS_WIDTH, GROUND_HEIGHT, FLOOR } from "./constants"
+import { FRICTION, CANVAS_WIDTH, FLOOR } from "./constants"
 import { isKeyDown, KEYS } from "./keyboard"
 import { Vec2, Context } from "./types"
-import { getRandomInt } from "./utils"
+import { clamp } from "./utils"
 
 export type Player = Vec2 & {
     vx: number
     vy: number
     color: string
     speed: number
+    lifes: number
     alive: boolean
     radius: number
     beaming: boolean
@@ -21,6 +22,7 @@ export function createPlayer({ x, y }: Vec2): Player {
         y,
         vx: 0,
         vy: 0,
+        lifes: 3,
         speed: 4,
         radius: 10,
         rotation: 0,
@@ -29,6 +31,11 @@ export function createPlayer({ x, y }: Vec2): Player {
         color: "#fff",
         beaming: false,
     }
+}
+
+export function renderPlayerLifes(ctx: Context, p: Player) {
+    ctx.save()
+    ctx.restore()
 }
 
 export function renderTractorBeam(ctx: Context, p: Player) {
@@ -94,10 +101,12 @@ export function updatePlayer(p: Player) {
         if (isKeyDown(KEYS.RIGHT) || isKeyDown(KEYS.D)) p.vx = p.speed
     }
 
+    p.beaming = isKeyDown(KEYS.SPACE)
+
     p.x += p.vx
     p.y += p.vy
-    p.vx *= FRICTION
-    p.vy *= FRICTION
+    p.vx = clamp(p.vx * FRICTION, 0, p.speed)
+    p.vy = clamp(p.vy * FRICTION, 0, p.speed)
 
     if (p.x - p.radius <= 0) p.x = p.radius
     if (p.y - p.radius <= 0) p.y = p.radius

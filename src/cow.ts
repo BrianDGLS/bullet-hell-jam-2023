@@ -8,6 +8,7 @@ export type Cow = Vec2 & {
     vy: number
     scale: Vec2
     speed: number
+    active: boolean,
     color: string
     width: number
     height: number
@@ -26,6 +27,7 @@ export function createCow({ x, y }: Vec2): Cow {
         width: 20,
         height: 20,
         rotation: 0,
+        active: true,
         color: "#fff",
         scale: { x: 1, y: 1 },
         isBeingAbducted: false,

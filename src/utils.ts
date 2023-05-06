@@ -6,6 +6,10 @@ export function getRandomInt(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min) + min) // The maximum is exclusive and the minimum is inclusive
 }
 
+export function clamp(n: number, min: number, max: number): number {
+    return Math.min(Math.max(n, min), max)
+}
+
 export const choose = (a: any, b: any) => (Math.random() > 0.5 ? a : b)
 
 export const sample = <T>(arr: T[]): T =>

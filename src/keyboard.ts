@@ -16,4 +16,5 @@ export const KEYS = {
     LEFT: 37,
     DOWN: 40,
     RIGHT: 39,
+    SPACE: 32,
 }

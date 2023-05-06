@@ -1,22 +1,16 @@
 import { layers } from "./layers"
 import { Context, Vec2 } from "./types"
 import {
+    FLOOR,
     CANVAS_WIDTH,
     CANVAS_HEIGHT,
     GROUND_HEIGHT,
-    FLOOR,
     PLANE_SPAWN_TIME,
 } from "./constants"
 import { createPlayer, updatePlayer, renderPlayer, Player } from "./player"
 import { generateCRTVignette } from "./crt"
 import { Cow, createCow, renderCow, updateCow } from "./cow"
-import {
-    choose,
-    circlesIntersect,
-    getRandomInt,
-    moveTowards,
-    sample,
-} from "./utils"
+import { choose, circlesIntersect, moveTowards } from "./utils"
 import { Farmer, createFarmer, renderFarmer, updateFarmer } from "./farmer"
 import { Bullet } from "./bullet"
 import { createExplosion, updateExplosion } from "./explosion"
@@ -29,6 +23,17 @@ import {
     updateAirplane,
 } from "./airplane"
 import { Duration } from "./duration"
+
+/**
+ * To do:
+ *  - start menu
+ *  - game over screen
+ *  - high score board
+ *  - player lifes
+ *  - sound
+ *  - music
+ *  - itch.io page
+ */
 
 const $stage = document.getElementById("stage") as HTMLDivElement
 
@@ -80,7 +85,8 @@ function fadeOutFrame(ctx: Context, opacity = 1) {
 
 type GameState = {
     player: Player
-    cows: Cow[]
+    cow: Cow
+    cowCooldown: Duration
     farmers: Farmer[]
     bullets: Bullet[]
     explosions: any[]
@@ -94,7 +100,8 @@ type GameState = {
 
 const state: GameState = {
     player: createPlayer({ x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 }),
-    cows: [createCow({ x: choose(CANVAS_WIDTH, 0), y: FLOOR })],
+    cow: createCow({ x: choose(CANVAS_WIDTH, 0), y: FLOOR }),
+    cowCooldown: new Duration(2000),
     farmers: [
         createFarmer({ x: CANVAS_WIDTH, y: FLOOR }),
         createFarmer({ x: 0, y: FLOOR }),
@@ -108,14 +115,6 @@ const state: GameState = {
     previousPlaneSpawn: 0,
     score: 0,
 }
-
-$stage.addEventListener("mousedown", () => {
-    state.player.beaming = true
-})
-
-$stage.addEventListener("mouseup", () => {
-    state.player.beaming = false
-})
 
 const vignette = generateCRTVignette(
     layers.offscreen,
@@ -154,6 +153,8 @@ function renderScore(ctx: Context, score: number) {
     ctx.restore()
 }
 
+const moo = new Audio("/moo.mp4")
+
 window.onload = function main() {
     requestAnimationFrame(main)
 
@@ -172,64 +173,80 @@ window.onload = function main() {
 
     renderHills(game, state.hills)
 
-    for (const cow of state.cows) {
+    //cow
+    const cow = state.cow
+    if (cow.active) {
         updateCow(cow)
+    }
 
-        if (state.player.beaming) {
-            if (
-                cow.x + cow.width < state.player.x + state.player.radius * 4 &&
-                cow.x - cow.width > state.player.x - state.player.radius * 4
-            ) {
-                cow.isBeingAbducted = true
-            }
-        } else {
-            cow.isBeingAbducted = false
-        }
-
-        if (cow.isBeingAbducted) {
-            const playerCenter = {
-                x:
-                    cow.vx < 0
-                        ? state.player.x - cow.width / 2
-                        : state.player.x + cow.width / 2,
-                y: state.player.y,
-            }
-            const newPosition = moveTowards(
-                cow,
-                playerCenter,
-                state.player.beamSpeed,
-            )
-            cow.x = newPosition.x
-            cow.y = newPosition.y
-        }
-
+    if (state.player.alive && state.player.beaming) {
         if (
+            cow.x + cow.width / 2 < state.player.x + state.player.radius * 4 &&
+            cow.x - cow.width / 2 > state.player.x - state.player.radius * 4
+        ) {
+            if (!cow.isBeingAbducted) {
+                moo.play()
+            }
+            cow.isBeingAbducted = true
+        }
+    } else {
+        cow.isBeingAbducted = false
+    }
+
+    if (cow.isBeingAbducted) {
+        const playerCenter = {
+            x:
+                cow.vx < 0
+                    ? state.player.x - cow.width / 2
+                    : state.player.x + cow.width / 2,
+            y: state.player.y,
+        }
+        const newPosition = moveTowards(
+            cow,
+            playerCenter,
+            state.player.beamSpeed,
+        )
+        cow.x = newPosition.x
+        cow.y = newPosition.y
+    }
+
+    if (
+        circlesIntersect(state.player, {
+            x: cow.x,
+            y: cow.y,
+            radius: cow.height / 2,
+        }) &&
+        cow.active
+    ) {
+        state.score += 1
+    }
+
+    if (
+        (cow.active &&
             circlesIntersect(state.player, {
                 x: cow.x,
                 y: cow.y,
                 radius: cow.height / 2,
-            })
-        ) {
-            state.score += 1
-        }
-
-        if (
-            circlesIntersect(state.player, {
-                x: cow.x,
-                y: cow.y,
-                radius: cow.height / 2,
-            }) ||
-            cow.x + cow.width < 0 ||
-            cow.x > CANVAS_WIDTH
-        ) {
+            })) ||
+        cow.x + cow.width < 0 ||
+        cow.x > CANVAS_WIDTH
+    ) {
+        cow.active = false
+        setTimeout(() => {
             Object.assign(
                 cow,
-                createCow({ x: choose(CANVAS_WIDTH, 0), y: FLOOR }),
+                createCow({
+                    x: cow.scale.x < 0 ? CANVAS_WIDTH : -cow.width,
+                    y: FLOOR,
+                }),
             )
-        }
+        }, 2000)
+    }
 
+    if (cow.active) {
         renderCow(game, cow)
     }
+    //cow
 
     for (const farmer of state.farmers) {
         updateFarmer(farmer)
