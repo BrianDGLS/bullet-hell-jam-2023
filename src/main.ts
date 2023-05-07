@@ -95,32 +95,37 @@ type GameState = {
     farmers: Farmer[]
     bullets: Bullet[]
     explosions: any[]
-    stars: Stars
-    hills: Vec2[]
     score: number
     plane: Airplane
     planeSpawnRate: Duration
     shake: boolean
     previousPlaneSpawn: number
+    playing: boolean
 }
 
-const state: GameState = {
-    player: createPlayer({ x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 }),
-    shake: false,
-    cow: createCow({ x: choose(CANVAS_WIDTH, 0), y: FLOOR }),
-    farmers: [
-        createFarmer({ x: CANVAS_WIDTH, y: FLOOR }),
-        createFarmer({ x: 0, y: FLOOR }),
-    ],
-    bullets: [],
-    explosions: [],
-    stars: new Stars(100),
-    hills: createHills(),
-    plane: createAirplane({ x: -50, y: 50 }),
-    planeSpawnRate: new Duration(PLANE_SPAWN_TIME),
-    previousPlaneSpawn: 0,
-    score: 0,
+const stars = new Stars(100)
+const hills = createHills()
+
+function getNewGameState(): GameState {
+    return {
+        playing: true,
+        player: createPlayer({ x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 4 }),
+        shake: false,
+        cow: createCow({ x: choose(CANVAS_WIDTH, 0), y: FLOOR }),
+        farmers: [
+            createFarmer({ x: CANVAS_WIDTH, y: FLOOR }),
+            createFarmer({ x: 0, y: FLOOR }),
+        ],
+        bullets: [],
+        explosions: [],
+        plane: createAirplane({ x: -50, y: 50 }),
+        planeSpawnRate: new Duration(PLANE_SPAWN_TIME),
+        previousPlaneSpawn: 0,
+        score: 0,
+    }
 }
+
+let state: GameState = { playing: false } as any
 
 const vignette = generateCRTVignette(
     layers.offscreen,
@@ -171,14 +176,6 @@ music.volume = 0.2
 music.loop = true
 music.play()
 
-let musicPlaying = false
-document.addEventListener("keydown", () => {
-    if (!musicPlaying) {
-        music.play()
-        musicPlaying = true
-    }
-})
-
 function preShake(ctx: Context) {
     ctx.save()
     var dx = Math.random() * 10
@@ -190,22 +187,43 @@ function postShake(ctx: Context) {
     ctx.restore()
 }
 
-let fps
-let requestTime
-const $fps = document.getElementById("fps") as HTMLDivElement
-window.onload = function main(time) {
+let mouseX = 0
+let mouseY = 0
+
+$stage.addEventListener("mousemove", (e) => {
+    mouseX = e.clientX
+    mouseY = e.clientY
+})
+
+const $startMenu = document.getElementById("start-menu") as HTMLDivElement
+const $gameOver = document.getElementById("game-over") as HTMLDivElement
+
+function startGame() {
+    $startMenu.style.display = "none"
+    $gameOver.style.display = "none"
+    state = getNewGameState()
+    music.play()
+}
+
+const $score = document.getElementById("score") as HTMLSpanElement
+
+function gameOver(score: number) {
+    $gameOver.style.display = "flex"
+    $score.innerHTML = score.toString()
+}
+
+const $playButton = document.getElementById("play-btn") as HTMLButtonElement
+const $playAgainButton = document.getElementById(
+    "play-again",
+) as HTMLButtonElement
+
+$playButton.addEventListener("click", startGame)
+$playAgainButton.addEventListener("click", startGame)
+
+window.onload = function main() {
     requestAnimationFrame(main)
 
-    if (requestTime) {
-        fps = Math.round(1000 / (performance.now() - requestTime))
-    }
-
-    requestTime = time
-    $fps.innerHTML = fps
-
     const { bg, game, ui, effects } = layers
-
-    effects.filter = "filter: blur(1px) saturate(4);"
 
     bg.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
     fadeOutFrame(game, 0.6)
@@ -213,196 +231,209 @@ window.onload = function main(time) {
     ui.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
 
     ui.putImageData(vignette, 0, 0)
-    renderPlayerLifes(ui, state.player)
-    renderScore(ui, state.score)
 
     if (state.shake) {
         preShake(game)
     }
 
-    state.stars.makeCamFollow(state.player)
-    state.stars.render(game)
-
-    renderHills(game, state.hills)
-
-    //cow
-    const cow = state.cow
-    if (cow.active) {
-        updateCow(cow)
-    }
-
-    if (state.player.alive && state.player.beaming) {
-        if (
-            cow.x + cow.width / 2 < state.player.x + state.player.radius * 4 &&
-            cow.x - cow.width / 2 > state.player.x - state.player.radius * 4
-        ) {
-            if (!cow.isBeingAbducted) {
-                moo.play()
-            }
-            cow.isBeingAbducted = true
-        }
+    if (state.player) {
+        stars.makeCamFollow(state.player)
     } else {
-        cow.isBeingAbducted = false
+        stars.makeCamFollow({ x: mouseX, y: mouseY })
     }
+    stars.render(game)
 
-    if (cow.isBeingAbducted) {
-        const playerCenter = {
-            x:
-                cow.vx < 0
-                    ? state.player.x - cow.width / 2
-                    : state.player.x + cow.width / 2,
-            y: state.player.y,
+    renderHills(game, hills)
+    renderBg(bg)
+    renderGround(game)
+
+    if (state.playing) {
+        renderPlayerLifes(ui, state.player)
+        renderScore(ui, state.score)
+
+        //cow
+        const cow = state.cow
+        if (cow.active) {
+            updateCow(cow)
         }
-        const newPosition = moveTowards(
-            cow,
-            playerCenter,
-            state.player.beamSpeed,
-        )
-        cow.x = newPosition.x
-        cow.y = newPosition.y
-    }
 
-    if (
-        circlesIntersect(state.player, {
-            x: cow.x,
-            y: cow.y,
-            radius: cow.height / 2,
-        }) &&
-        state.player.beaming &&
-        cow.active
-    ) {
-        cowBell.play()
-        state.score += 1
-    }
+        if (state.player.alive && state.player.beaming) {
+            if (
+                cow.x + cow.width / 2 <
+                    state.player.x + state.player.radius * 4 &&
+                cow.x - cow.width / 2 > state.player.x - state.player.radius * 4
+            ) {
+                if (!cow.isBeingAbducted) {
+                    moo.play()
+                }
+                cow.isBeingAbducted = true
+            }
+        } else {
+            cow.isBeingAbducted = false
+        }
 
-    if (
-        (cow.active &&
+        if (cow.isBeingAbducted) {
+            const playerCenter = {
+                x:
+                    cow.vx < 0
+                        ? state.player.x - cow.width / 2
+                        : state.player.x + cow.width / 2,
+                y: state.player.y,
+            }
+            const newPosition = moveTowards(
+                cow,
+                playerCenter,
+                state.player.beamSpeed,
+            )
+            cow.x = newPosition.x
+            cow.y = newPosition.y
+        }
+
+        if (
             circlesIntersect(state.player, {
                 x: cow.x,
                 y: cow.y,
                 radius: cow.height / 2,
             }) &&
-            state.player.beaming) ||
-        cow.x + cow.width < 0 ||
-        cow.x > CANVAS_WIDTH
-    ) {
-        cow.active = false
-        setTimeout(() => {
-            Object.assign(
-                cow,
-                createCow({
-                    x: cow.scale.x < 0 ? CANVAS_WIDTH : -cow.width,
-                    y: FLOOR,
-                }),
-            )
-        }, 2000)
-    }
-
-    if (cow.active) {
-        renderCow(game, cow)
-    }
-    //cow
-
-    for (const farmer of state.farmers) {
-        updateFarmer(farmer)
-        if (state.player.alive && farmer.x > 0 && farmer.x < CANVAS_WIDTH) {
-            makeFarmerShoot(farmer, state.player, state)
+            state.player.beaming &&
+            cow.active
+        ) {
+            cowBell.play()
+            state.score += 1
         }
-        renderFarmer(game, farmer)
 
-        if (farmer.x + farmer.width < 0 || farmer.x > CANVAS_WIDTH) {
-            Object.assign(
-                farmer,
-                createFarmer({
-                    x: farmer.vx < 0 ? CANVAS_WIDTH : -farmer.width,
-                    y: FLOOR,
-                }),
-            )
-        }
-    }
-
-    for (const [index, bullet] of state.bullets.entries()) {
-        bullet.update()
-        bullet.render(effects)
-
-        if (state.player.alive && circlesIntersect(bullet, state.player)) {
-            playerHit.play()
-            state.explosions.push(createExplosion(state.player))
-            bullet.active = false
-
-            state.shake = true
+        if (
+            (cow.active &&
+                circlesIntersect(state.player, {
+                    x: cow.x,
+                    y: cow.y,
+                    radius: cow.height / 2,
+                }) &&
+                state.player.beaming) ||
+            cow.x + cow.width < 0 ||
+            cow.x > CANVAS_WIDTH
+        ) {
+            cow.active = false
             setTimeout(() => {
-                state.shake = false
-            }, 300)
-            state.player.lifes -= 1
+                Object.assign(
+                    cow,
+                    createCow({
+                        x: cow.scale.x < 0 ? CANVAS_WIDTH : -cow.width,
+                        y: FLOOR,
+                    }),
+                )
+            }, 2000)
+        }
 
-            if (state.player.lifes === 0) {
-                state.player.alive = false
+        if (cow.active) {
+            renderCow(game, cow)
+        }
+        //cow
+
+        for (const farmer of state.farmers) {
+            updateFarmer(farmer)
+            if (state.player.alive && farmer.x > 0 && farmer.x < CANVAS_WIDTH) {
+                makeFarmerShoot(farmer, state.player, state)
+            }
+            renderFarmer(game, farmer)
+
+            if (farmer.x + farmer.width < 0 || farmer.x > CANVAS_WIDTH) {
+                Object.assign(
+                    farmer,
+                    createFarmer({
+                        x: farmer.vx < 0 ? CANVAS_WIDTH : -farmer.width,
+                        y: FLOOR,
+                    }),
+                )
             }
         }
 
-        if (
-            bullet.x + bullet.radius < 0 ||
-            bullet.x - bullet.radius > CANVAS_WIDTH ||
-            bullet.y - bullet.radius < 0 ||
-            bullet.y + bullet.radius > CANVAS_HEIGHT
-        ) {
-            bullet.active = false
+        for (const bullet of state.bullets) {
+            bullet.update()
+            bullet.render(effects)
+
+            if (state.player.alive && circlesIntersect(bullet, state.player)) {
+                playerHit.play()
+                state.explosions.push(createExplosion(state.player))
+                bullet.active = false
+
+                state.shake = true
+                setTimeout(() => {
+                    state.shake = false
+                }, 300)
+                state.player.lifes -= 1
+
+                if (state.player.lifes === 0) {
+                    state.player.alive = false
+
+                    setTimeout(() => {
+                        state.playing = false
+                        gameOver(state.score)
+                    }, 1500)
+                }
+            }
+
+            if (
+                bullet.x + bullet.radius < 0 ||
+                bullet.x - bullet.radius > CANVAS_WIDTH ||
+                bullet.y - bullet.radius < 0 ||
+                bullet.y + bullet.radius > CANVAS_HEIGHT
+            ) {
+                bullet.active = false
+            }
+
+            if (bullet.y + bullet.radius > FLOOR) {
+                bombHitGround.play()
+                state.explosions.push(createExplosion(bullet))
+                bullet.active = false
+            }
         }
 
-        if (bullet.y + bullet.radius > FLOOR) {
-            bombHitGround.play()
-            state.explosions.push(createExplosion(bullet))
-            bullet.active = false
+        if (!state.plane.active && state.planeSpawnRate.hasPassed()) {
+            state.plane.active = true
+
+            const spawnRight = state.previousPlaneSpawn <= 0
+            state.plane.x = spawnRight
+                ? CANVAS_WIDTH + state.plane.radius
+                : -state.plane.radius
+            state.plane.vx = spawnRight
+                ? -state.player.speed
+                : state.player.speed
+            state.plane.scaleX = spawnRight ? -1 : 1
+
+            state.previousPlaneSpawn = state.plane.x
         }
-    }
 
-    if (!state.plane.active && state.planeSpawnRate.hasPassed()) {
-        state.plane.active = true
+        if (state.plane.active) {
+            updateAirplane(state.plane)
+            if (state.player.alive) {
+                makePlaneShoot(state.plane, state)
+            }
+            renderAirplane(game, state.plane)
 
-        const spawnRight = state.previousPlaneSpawn <= 0
-        state.plane.x = spawnRight
-            ? CANVAS_WIDTH + state.plane.radius
-            : -state.plane.radius
-        state.plane.vx = spawnRight ? -state.player.speed : state.player.speed
-        state.plane.scaleX = spawnRight ? -1 : 1
+            if (
+                state.plane.x - state.plane.radius > CANVAS_WIDTH ||
+                state.plane.x + state.plane.radius < 0
+            ) {
+                state.plane.active = false
+                state.planeSpawnRate = new Duration(PLANE_SPAWN_TIME)
+            }
+        }
 
-        state.previousPlaneSpawn = state.plane.x
-    }
-
-    if (state.plane.active) {
-        updateAirplane(state.plane)
         if (state.player.alive) {
-            makePlaneShoot(state.plane, state)
+            updatePlayer(state.player)
+            renderPlayer(game, state.player)
         }
-        renderAirplane(game, state.plane)
 
-        if (
-            state.plane.x - state.plane.radius > CANVAS_WIDTH ||
-            state.plane.x + state.plane.radius < 0
-        ) {
-            state.plane.active = false
-            state.planeSpawnRate = new Duration(PLANE_SPAWN_TIME)
+        for (const [index, explosion] of state.explosions.entries()) {
+            if (explosion.ended) {
+                state.explosions.splice(index, 1)
+            } else {
+                updateExplosion(effects, explosion)
+            }
         }
+        state.bullets = state.bullets.filter((b) => b.active)
     }
-
-    if (state.player.alive) {
-        updatePlayer(state.player)
-        renderPlayer(game, state.player)
-    }
-
-    for (const [index, explosion] of state.explosions.entries()) {
-        if (explosion.ended) {
-            state.explosions.splice(index, 1)
-        } else {
-            updateExplosion(effects, explosion)
-        }
-    }
-
-    renderBg(bg)
-    renderGround(game)
-
-    state.bullets = state.bullets.filter((b) => b.active)
 
     if (state.shake) {
         postShake(game)
