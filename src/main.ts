@@ -7,7 +7,13 @@ import {
     GROUND_HEIGHT,
     PLANE_SPAWN_TIME,
 } from "./constants"
-import { createPlayer, updatePlayer, renderPlayer, Player } from "./player"
+import {
+    createPlayer,
+    updatePlayer,
+    renderPlayer,
+    Player,
+    renderPlayerLifes,
+} from "./player"
 import { generateCRTVignette } from "./crt"
 import { Cow, createCow, renderCow, updateCow } from "./cow"
 import { choose, circlesIntersect, moveTowards } from "./utils"
@@ -86,7 +92,6 @@ function fadeOutFrame(ctx: Context, opacity = 1) {
 type GameState = {
     player: Player
     cow: Cow
-    cowCooldown: Duration
     farmers: Farmer[]
     bullets: Bullet[]
     explosions: any[]
@@ -95,13 +100,14 @@ type GameState = {
     score: number
     plane: Airplane
     planeSpawnRate: Duration
+    shake: boolean
     previousPlaneSpawn: number
 }
 
 const state: GameState = {
     player: createPlayer({ x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 }),
+    shake: false,
     cow: createCow({ x: choose(CANVAS_WIDTH, 0), y: FLOOR }),
-    cowCooldown: new Duration(2000),
     farmers: [
         createFarmer({ x: CANVAS_WIDTH, y: FLOOR }),
         createFarmer({ x: 0, y: FLOOR }),
@@ -154,11 +160,52 @@ function renderScore(ctx: Context, score: number) {
 }
 
 const moo = new Audio("/moo.mp4")
+const cowBell = new Audio("/cow-bell.wav")
+cowBell.volume = 0.3
+const bombHitGround = new Audio("/bomb-hit-ground.wav")
+bombHitGround.volume = 0.3
+const playerHit = new Audio("/player-hit.wav")
+playerHit.volume = 0.3
+const music = new Audio("/music.mp3")
+music.volume = 0.2
+music.loop = true
+music.play()
 
-window.onload = function main() {
+let musicPlaying = false
+document.addEventListener("keydown", () => {
+    if (!musicPlaying) {
+        music.play()
+        musicPlaying = true
+    }
+})
+
+function preShake(ctx: Context) {
+    ctx.save()
+    var dx = Math.random() * 10
+    var dy = Math.random() * 10
+    ctx.translate(dx, dy)
+}
+
+function postShake(ctx: Context) {
+    ctx.restore()
+}
+
+let fps
+let requestTime
+const $fps = document.getElementById("fps") as HTMLDivElement
+window.onload = function main(time) {
     requestAnimationFrame(main)
 
+    if (requestTime) {
+        fps = Math.round(1000 / (performance.now() - requestTime))
+    }
+
+    requestTime = time
+    $fps.innerHTML = fps
+
     const { bg, game, ui, effects } = layers
+
+    effects.filter = "filter: blur(1px) saturate(4);"
 
     bg.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
     fadeOutFrame(game, 0.6)
@@ -166,7 +213,12 @@ window.onload = function main() {
     ui.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
 
     ui.putImageData(vignette, 0, 0)
+    renderPlayerLifes(ui, state.player)
     renderScore(ui, state.score)
+
+    if (state.shake) {
+        preShake(game)
+    }
 
     state.stars.makeCamFollow(state.player)
     state.stars.render(game)
@@ -216,8 +268,10 @@ window.onload = function main() {
             y: cow.y,
             radius: cow.height / 2,
         }) &&
+        state.player.beaming &&
         cow.active
     ) {
+        cowBell.play()
         state.score += 1
     }
 
@@ -227,7 +281,8 @@ window.onload = function main() {
                 x: cow.x,
                 y: cow.y,
                 radius: cow.height / 2,
-            })) ||
+            }) &&
+            state.player.beaming) ||
         cow.x + cow.width < 0 ||
         cow.x > CANVAS_WIDTH
     ) {
@@ -271,9 +326,19 @@ window.onload = function main() {
         bullet.render(effects)
 
         if (state.player.alive && circlesIntersect(bullet, state.player)) {
+            playerHit.play()
             state.explosions.push(createExplosion(state.player))
             bullet.active = false
-            state.player.alive = false
+
+            state.shake = true
+            setTimeout(() => {
+                state.shake = false
+            }, 300)
+            state.player.lifes -= 1
+
+            if (state.player.lifes === 0) {
+                state.player.alive = false
+            }
         }
 
         if (
@@ -286,6 +351,7 @@ window.onload = function main() {
         }
 
         if (bullet.y + bullet.radius > FLOOR) {
+            bombHitGround.play()
             state.explosions.push(createExplosion(bullet))
             bullet.active = false
         }
@@ -306,7 +372,9 @@ window.onload = function main() {
 
     if (state.plane.active) {
         updateAirplane(state.plane)
-        makePlaneShoot(state.plane, state)
+        if (state.player.alive) {
+            makePlaneShoot(state.plane, state)
+        }
         renderAirplane(game, state.plane)
 
         if (
@@ -335,4 +403,8 @@ window.onload = function main() {
     renderGround(game)
 
     state.bullets = state.bullets.filter((b) => b.active)
+
+    if (state.shake) {
+        postShake(game)
+    }
 }

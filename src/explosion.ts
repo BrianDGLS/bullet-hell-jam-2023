@@ -53,9 +53,9 @@ export const updateExplosion = (ctx: Context, e) => {
 
         ctx.save()
         ctx.translate(m.x, m.y)
-        ctx.lineWidth = 4;
-        ctx.strokeStyle = `hsla(0,80%,80%,${e.alpha})`
-        ctx.fillStyle = `hsla(300,50%,80%,${e.alpha})`
+        ctx.lineWidth = 4
+        ctx.strokeStyle = `hsla(16, 88%, 54%,${e.alpha})`
+        ctx.fillStyle = `hsla(16, 88%, 54%,${e.alpha})`
         ctx.beginPath()
         ctx.arc(0, 0, m.radius, 0, Math.PI * 2)
         ctx.fill()

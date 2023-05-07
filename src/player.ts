@@ -35,16 +35,24 @@ export function createPlayer({ x, y }: Vec2): Player {
 
 export function renderPlayerLifes(ctx: Context, p: Player) {
     ctx.save()
+    ctx.fillStyle = "rgba(0, 0, 0, .3)"
+    ctx.fillRect(0, 0, 105, 35)
+    ctx.font = "22px monospace"
+    ctx.textAlign = "center"
+    ctx.textBaseline = "middle"
+    ctx.filter = "grayscale(1)"
+    ctx.fillStyle = "#fff"
+    ctx.fillText(`👽 ${p.lifes.toString().padStart(4, " ")}`, 55, 20)
     ctx.restore()
 }
 
 export function renderTractorBeam(ctx: Context, p: Player) {
     ctx.save()
     ctx.translate(p.x, p.y)
-    ctx.strokeStyle = "blue"
-    ctx.fillStyle = "rgba(0, 0, 255, .4)"
+    ctx.strokeStyle = "yellow"
+    ctx.fillStyle = "rgba(255, 255, 0, .4)"
 
-    ctx.lineWidth = 2.5
+    ctx.lineWidth = 3
 
     const originSpread = p.radius
     const destSpread = p.radius * 4
@@ -76,7 +84,7 @@ export function renderPlayer(ctx: Context, p: Player) {
 
     ctx.rotate(p.rotation)
 
-    ctx.lineWidth = 2.5
+    ctx.lineWidth = 3
 
     ctx.beginPath()
     ctx.ellipse(0, 0, p.radius * 2, p.radius, 0, 0, Math.PI)

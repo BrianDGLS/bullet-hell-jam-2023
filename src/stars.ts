@@ -6,7 +6,7 @@ export class Stars {
     stars: Star[] = []
     min_depth = 50
     max_depth = 500 //Star closer if depth lower
-    max_size = 2 //max radius for the closest star
+    max_size = 3 //max radius for the closest star
     step = this.max_size / (this.max_depth - this.min_depth) //used for determining radius  using depth
     centerX = CANVAS_WIDTH / 2
     centerY = CANVAS_HEIGHT / 2
