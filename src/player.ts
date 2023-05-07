@@ -14,6 +14,7 @@ export type Player = Vec2 & {
     beaming: boolean
     rotation: number
     beamSpeed: number
+    invincible: boolean
 }
 
 export function createPlayer({ x, y }: Vec2): Player {
@@ -30,6 +31,7 @@ export function createPlayer({ x, y }: Vec2): Player {
         beamSpeed: 2,
         color: "#fff",
         beaming: false,
+        invincible: false,
     }
 }
 

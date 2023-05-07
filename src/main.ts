@@ -352,7 +352,7 @@ window.onload = function main() {
             bullet.update()
             bullet.render(effects)
 
-            if (state.player.alive && circlesIntersect(bullet, state.player)) {
+            if (state.player.alive && !state.player.invincible && circlesIntersect(bullet, state.player)) {
                 playerHit.play()
                 state.explosions.push(createExplosion(state.player))
                 bullet.active = false
@@ -362,6 +362,11 @@ window.onload = function main() {
                     state.shake = false
                 }, 300)
                 state.player.lifes -= 1
+
+                state.player.invincible = true
+                setTimeout(() => {
+                    state.player.invincible = false
+                }, 500)
 
                 if (state.player.lifes === 0) {
                     state.player.alive = false
