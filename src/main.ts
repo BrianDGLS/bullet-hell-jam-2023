@@ -30,16 +30,6 @@ import {
 } from "./airplane"
 import { Duration } from "./duration"
 
-/**
- * To do:
- *  - start menu
- *  - game over screen
- *  - high score board
- *  - player lifes
- *  - sound
- *  - music
- *  - itch.io page
- */
 
 const $stage = document.getElementById("stage") as HTMLDivElement
 
@@ -164,14 +154,15 @@ function renderScore(ctx: Context, score: number) {
     ctx.restore()
 }
 
-const moo = new Audio("/moo.mp4")
-const cowBell = new Audio("/cow-bell.wav")
+const moo = new Audio("./moo.mp4")
+
+const cowBell = new Audio("./cow-bell.wav")
 cowBell.volume = 0.3
-const bombHitGround = new Audio("/bomb-hit-ground.wav")
+const bombHitGround = new Audio("./bomb-hit-ground.wav")
 bombHitGround.volume = 0.3
-const playerHit = new Audio("/player-hit.wav")
+const playerHit = new Audio("./player-hit.wav")
 playerHit.volume = 0.3
-const music = new Audio("/music.mp3")
+const music = new Audio("./music.mp3")
 music.volume = 0.2
 music.loop = true
 music.play()
